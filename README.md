@@ -206,7 +206,7 @@
         单值索引 - 以某一个字段为关键字建索引
 
             create index idx_user_name on user(name);
-        
+
         复合索引 - 以多个字段为关键字建索引
 
             create index idx_user_nameEmail on user(name, email);
@@ -251,7 +251,7 @@
         索引（Index）是帮助MySQL高效获取数据的数据结构。
 
         简单理解为排好序的快速查找数据结构。
-    
+
     在数据之外，数据库系统还维护着满足特定查找算法的数据结构，
     这些数据结构以某种方式引用（指向）数据结构，
     这样就可以在这些数据结构的基础上实现高级的查找算法。
@@ -268,7 +268,7 @@
     优势：
         ·提高数据检索效率，降低数据库IO成本
         ·索引如果是有序的，那么也可以降低排序的成本，降低CPU消耗
-    
+
     劣势：
         ·索引本身要占用空间
         ·降低数据修改效率，因为更新数据时还要同时更新索引
@@ -292,11 +292,11 @@
     1.创建
 
         create [unique] index indexName on tableName(col1(length),...);
-    
+
     2.删除
 
         drop index [indexName] on tableName;
-    
+
     3.查看
 
         show index from tableName;
@@ -342,27 +342,27 @@
 
         MySQL有专门负责优化SELECT语句的优化器模块，主要功能：
         通过计算收集到的统计信息，为客户端请求的Query提供他认为的执行计划。
-    
+
         客户端向MySQL发出一条Query，命令解析器区别出是SELECT语句之后，转发给Optimizer。
         Optimizer会：
             ·进行优化，计算出常量表达式
             ·进行简化和转换，去掉无用条件
             ·分析Hint信息，以及确定Hint是否可以完全确定执行计划
             ·没有Hint或足够的Hint信息时，根据Query得出相应的执行计划
-        
+
     2.MySQL常见瓶颈
 
         CPU：CPU在饱和的时候一般发生在数据装入内存或从磁盘上读取数据的时候
         IO：磁盘I/O瓶颈发生在装入数据远大于内存容量的时候
         服务器硬件：top，free，iostat和vmstat来查看系统的性能状态
-    
+
     3.Explain
 
         ·是什么（查看执行计划）
 
             使用EXPLAIN关键字可以模拟优化器执行SQL查询语句，
             从而知道MySQL是如何执行查询语句的。
-        
+
         ·能干嘛
 
             -表的读取顺序
@@ -386,10 +386,137 @@
                 ·rows
                 ·filtered
                 ·Extra
-        
+
         ·各字段解释
 
         ·热身Case
+
+    4.Explain各字段解释
+
+        ·id - select查询的序列号，包含一组数字，表示查询中执行select子句或操作表的顺序
+
+            三种情况：
+                -id相同时，执行顺序由上到下
+
+                    explain select t2.*
+                    from t1, t2, t3
+                    where t1.id=t2.id and t1.id=t3.id
+                    and t1.col='';
+
+| id  | select_type | table... |
+|-----|-------------|----------|
+| 1   | SIMPLE      | t1...    |
+| 1   | SIMPLE      | t3...    |
+| 1   | SIMPLE      | t2...    |
+
+                -id不同，如果是子查询，id的序号会递增，id值越大优先级越高
+
+                    explain select t2.*
+                    from t2
+                    where id=(
+                        select id
+                        from t1
+                        where id=(
+                            select t3.id
+                            from t3
+                            where t3.col='')
+                        )
+                    );
+
+|id|select_type|table|type|possible_keys|key|key_len|ref|rows|Extra|
+|-|-|-|-|-|-|-|-|-|-|
+|1|PRIMARY|t2|const|PRIMARY|PRIMARY|4|const|1||
+|2|SUBQUERY|t1|const|PRIMARY|PRIMARY|4||1|Using index|
+|3|SUBQUERY|t3|ALL|NULL|NULL|NULL|NULL|1|Using where|
+
+                -id相同不同，同时存在；同级从上向下，不同级由高到低
+
+                    explain select t2.*
+                    from (
+                        select t3.id
+                        from t3
+                        where t3.col=''
+                    ) s1, t2
+                    where s1.id = t2.id;
+
+|id|select_type|table...
+|-|-|-|
+|1|PRIMARY|\<derived2\>...
+|1|PRIMARY|t2...
+|2|DERIVED|t3...
+
+        DERIVED:衍生
+
+        ·select_type - 数据读取操作的操作类型
+            -SIMPLE
+                简单查询（不包含子查询或者UNION操作）
+            -PRIMARY
+                若查询中包含任何复杂的子部分，则最外层被标记为PRIMARY
+            -SUBQUERY
+                在SELECT或WHERE列表中包含的子查询
+            -DERIVED
+                在FROM中包含的子查询被标记为DERIVED
+                MySQL会递归执行这些子查询，把结果放在临时表里（<derived + [id]>）
+            -UNION
+                第二个SELECT出现在UNION之后，则被标记为UNION。
+                若UNION包含在FROM子句的子查询中，外层SELECT将被标记为DERIVED
+            -UNION RESULT
+                从UNION表获取结果的
+
+mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id union select * from tbl_emp a right join tbl_dept b on a.deptId=b.id; 
+
+| id | select_type  | table      | partitions | type   | possible_keys | key        | key_len | ref           | rows | filtered | Extra           |
+|-|-|-|-|-|-|-|-|-|-|-|-|
+|  1 | PRIMARY      | a          | NULL       | ALL    | NULL          | NULL       | NULL    | NULL          |    8 |   100.00 | NULL            |
+|  1 | PRIMARY      | b          | NULL       | eq_ref | PRIMARY       | PRIMARY    | 4       | test.a.deptId |    1 |   100.00 | NULL            |
+|  2 | UNION        | b          | NULL       | ALL    | NULL          | NULL       | NULL    | NULL          |    5 |   100.00 | NULL            |
+|  2 | UNION        | a          | NULL       | ref    | fk_dept_id    | fk_dept_id | 5       | test.b.id     |    2 |   100.00 | NULL            |
+| NULL | UNION RESULT | <union1, 2> | NULL       | ALL    | NULL          | NULL       | NULL    | NULL          | NULL |     NULL | Using temporary |
+
+        ·table - 数据来源表
+        ·type - 访问类型
+            -ALL
+            -index
+            -range
+            -ref
+            -eq_ref
+            -const,system
+            -NULL
+            ...
+
+            常见type效率排列：
+                system > const > eq_ref > ref > range > index > ALL
+
+            ※百万数据量 + ALL 直接考虑优化
+            一般来说保证到达range或者ref级别
+        
+            -system
+                表只有一行记录（等于系统表），是const类型的特例，平时不会出现
+            -const
+                通过索引一次就找到了，比如等值比较PK或者Unique索引。
+                将主键置于where列表中，MySQL就将该查询转换为const级别
+            -eq_ref
+                唯一性索引扫描。对于每个索引键，表中只有一条记录与之匹配。
+                常见于主键或者唯一索引扫描
+
+ explain select * from tbl_emp, tbl_dept where tbl_emp.deptId=tbl_dept.id;
+
+id|table|type
+-|-|-
+1|tbl_emp|ALL
+1|tbl_dept|eq_ref
+
+            -ref
+                非唯一性索引扫描。对于每个索引键，表中有不止一条记录与之匹配。
+            -range
+                在索引上检索给定范围。因为有开始和结束点，所以还是优于全表扫描的。
+            -index
+                FULL INDEX SCAN，遍历索引树。
+                因为只遍历索引树即可，所以优于全表读。
+            -ALL
+                主键索引全表扫描。
+
+            
 
 
     

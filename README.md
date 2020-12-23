@@ -499,12 +499,12 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
                 唯一性索引扫描。对于每个索引键，表中只有一条记录与之匹配。
                 常见于主键或者唯一索引扫描
 
- explain select * from tbl_emp, tbl_dept where tbl_emp.deptId=tbl_dept.id;
+ explain select * from tbl_emp, tbl_dept where tbl_emp.deptId=tbl_dept.id; 
 
-id|table|type
--|-|-
-1|tbl_emp|ALL
-1|tbl_dept|eq_ref
+| id  | table    | type   |
+|-----|----------|--------|
+| 1   | tbl_emp  | ALL    |
+| 1   | tbl_dept | eq_ref |
 
             -ref
                 非唯一性索引扫描。对于每个索引键，表中有不止一条记录与之匹配。
@@ -515,6 +515,45 @@ id|table|type
                 因为只遍历索引树即可，所以优于全表读。
             -ALL
                 主键索引全表扫描。
+
+        ·possible_keys - 可能应用在查询中的索引，一个或者多个。
+            ※但不一定被实际使用
+
+        ·key - 实际被应用的索引，一个。如果为NULL，则没有使用索引。
+            若查询中使用了覆盖索引，则该索引仅出现在key中。
+
+            explain select col2,col3 from t1;
+        
+        ·key_len - 索引中使用的字节数，显示为字段的定义长度，而非实际的数据长度
+            ※联合索引可以只使用一部分
+
+        ·ref - 显示哪一列被用于和这张表的索引列相比较了，可能是一个常数
+            多个索引字段被使用的话会显示多个值
+            where t1.id=t2.id and t1.id=t3.id and t1.col1=""
+            id - 1 - 1 - 1
+            ref - const - test.t1.id - test.t1.id
+            ： t1.col1和常数相比较，t2.id和t1.id相比较，t3.id和t1.id相比较
+        
+        ·rows - 根据表统计信息和索引选用情况，大致统计出需要查询多少行数据
+
+        ·Extra - 额外信息
+            -using filesort
+                MySQL会使用一个外部的索引排序（无法利用索引完成的排序称为filesort）
+            -using temporary
+                使用临时表保存中间结果。常见于order by和分组查询group by
+            -using index
+                查询操作使用了覆盖索引，如果同时出现了using where，表名索引用来查找
+            -using where
+                索引用来查找
+            -using join buffer
+                使用了join缓存
+            -impossible where
+                where值总为false
+            -select tables optimized away
+                在没有group by的情况下，基于索引优化MIN、MAX操作
+                或者MyISAM引擎优化COUNT(*)操作，也就是在执行计划阶段就完成了查询
+            -distinct
+                优化distinct操作，找到第一个匹配后就停止
 
             
 

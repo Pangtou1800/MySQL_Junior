@@ -555,7 +555,110 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
             -distinct
                 优化distinct操作，找到第一个匹配后就停止
 
-            
+### 4.2 索引建立和优化
 
+    1.单表
+
+        create table if not exists article (
+            id int primary key auto_increment,
+            author_id int not null,
+            category_id int not null,
+            views int not null,
+            comments int not null,
+            title varbinary(255) not null,
+            content text not null
+        );
+
+        insert into article values(1,1,1,1,1,'1','1'),(2,2,2,2,2,'2','2'),
+        (3,3,3,3,3,'3','3');
+    
+        案例1：查询category_id=1且comments>1的情况下，views最多的article_id
+
+        select id,author_id from article
+        where category_id =1 and comments>1
+        order by views desc limit 1;
+
+        explain之后，type是All，Extra中有filesort。
+
+        尝试优化1：建立索引
+
+        create index idx_article_ccv on article(category_id,comments,views);
+
+        使用了索引。
+        type变为range，Extra变为where，但是依然有filesort。 => 因为范围导致后续索引失效了
+
+        drop index idx_article_ccv on article;
+
+        尝试优化2：建立索引
+
+        create index idx_article_cvc on article(category_id,views,comments);
+
+        使用了索引，Extra中filesort消失，出现了Backward index scan。
+
+        drop index idx_article_ccv on article;
+
+        尝试优化3：
+        
+        create index idx_article_cv on article(category_id,views);
+
+        和2效果相同
+
+        尝试优化4：
+
+        create index idx_article_cvca on article(category_id,views,comments,author_id);
+
+        Extra中出现了Using index，起飞
+    
+    2.双表
+
+        create table class (
+            id int primary key auto_increment,
+            card int
+        );
+
+        create table book (
+            bookId int primary key auto_increment,
+            card int
+        );
+
+        insert into class(card) values(floor(1 + (rand()*20)));
+        insert into book(card) values(floor(1 + (rand()*20)));
+
+        案例：
+
+            select * from class left join book on class.card=book.card;
+
+        没有索引：
+
+            id - 1 - 1
+            table - class - book
+            type - all - all
+            extra - null - using where; using join buffer
+        
+        尝试优化1：
+
+            左连接加在右表上
+            create index idx_book_card on book(card);
+
+            id - 1 - 1
+            table - class - book
+            type - all - ref
+            extra - null - using index
+
+            drop index idx_book_card on book;
+        
+        尝试优化2：
+
+            左连接加在左表上
+            create index idx_class_card on class(card);
+
+            id - 1 - 1
+            table - class - book
+            type - index - all
+            extra - using index - using where; using join buffer
+
+            drop index idx_class_card on book;
+
+        结论：join的话被驱动表要建索引。
 
     

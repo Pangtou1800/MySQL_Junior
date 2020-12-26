@@ -660,5 +660,73 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
             drop index idx_class_card on book;
 
         结论：join的话被驱动表要建索引。
-
     
+    3.三表
+
+        create table if not exists phone (
+                phoneid int primary key auto_increment,
+                card int
+        );
+
+        insert into phone(card) values(floor(1 + rand()*20));
+
+        案例：
+
+            select * from class 
+            left join book on class.card=book.card
+            left join phone on book.card=phone.card;
+        
+        未优化：
+
+            id - 1 - 1 - 1
+            table - class - book - phone
+            type - All - All - All
+            Extra - NULL - Using where; Using join buffer - ...
+        
+        尝试优化1：
+
+            create index idx_book_card on book(card);
+            create index idx_phone_card on phone(card);
+
+            id - 1 - 1 - 1
+            table - class - book - phone
+            type - All - ref - ref
+            Extra - NULL - Using index - Using index
+
+    4.Join语句的优化
+        ·小表驱动大表，因为驱动表是全表扫描
+        ·优先优化内层循环
+        ·被驱动表上Join字段建立索引
+        ·无法保证被驱动表的索引时，调节JoinBuffer
+
+### 4.3 索引失效
+
+    create table staffs (
+        id int primary key auto_increment,
+        name varchar(24) not null default '' comment '姓名',
+        age int not null default 0 comment '年龄',
+        pos varchar(20) not null default '' comment '职位',
+        add_time timestamp not null default current_timestamp comment '入职时间'
+    ) comment '员工记录表';
+
+    insert into staffs(name, age, pos, add_time)
+    values('z3',22,'manager',now()),
+    ('July',23,'dev',now()),('2000',23,'dev',now());
+
+    create index idx_staffs_nameAgePos on staffs(name,age,pos);
+
+    避免索引失效：
+        ·使用全值匹配 - 索引中的每个列都在查询条件中
+        ·遵循最佳左前缀法则 - 索引中的列从左到右开始适用
+        ·不在索引列上做任何操作（计算、函数、自动·手动类型转换）
+        ·范围条件列的右边的索引列无法使用（不等号之后的条件无法使用索引） - 范围之后全失效
+        ·尽量使用覆盖引擎
+        ·不等于条件也很难使用索引 （8.1测试结果type-range）
+        ·IS NULL， IS NOT NULL也无法使用索引
+        ·like 以%开头无法使用索引
+            - 如何解决两头%索引失效的问题？
+            - 推荐使用覆盖索引来解决
+             - type - index; Extra - Using where; Using index
+        ·字符串不加单引号索引失效
+        ·用OR连接会索引失效
+

@@ -571,7 +571,9 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
 
         insert into article values(1,1,1,1,1,'1','1'),(2,2,2,2,2,'2','2'),
         (3,3,3,3,3,'3','3');
+
     
+
         案例1：查询category_id=1且comments>1的情况下，views最多的article_id
 
         select id,author_id from article
@@ -608,7 +610,9 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
         create index idx_article_cvca on article(category_id,views,comments,author_id);
 
         Extra中出现了Using index，起飞
+
     
+
     2.双表
 
         create table class (
@@ -660,7 +664,9 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
             drop index idx_class_card on book;
 
         结论：join的话被驱动表要建索引。
+
     
+
     3.三表
 
         create table if not exists phone (
@@ -724,9 +730,129 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
         ·不等于条件也很难使用索引 （8.1测试结果type-range）
         ·IS NULL， IS NOT NULL也无法使用索引
         ·like 以%开头无法使用索引
-            - 如何解决两头%索引失效的问题？
-            - 推荐使用覆盖索引来解决
-             - type - index; Extra - Using where; Using index
+            -如何解决两头%索引失效的问题？
+            -推荐使用覆盖索引来解决
+             -type - index; Extra - Using where; Using index
         ·字符串不加单引号索引失效
         ·用OR连接会索引失效
 
+### 4.4 题目分析
+
+    create table test03(
+        id int primary key auto_increment,
+        c1 char(10),
+        c2 char(10),
+        c3 char(10),
+        c4 char(10),
+        c5 char(10)
+    );
+
+    insert into test03(c1,c2,c3,c4,c5)
+    values('a1','a2','a3','a4','a5'),('b1','b2','b3','b4','b5'),
+    ('c1','c2','c3','c4','c5'),('d1','d2','d3','d4','d5'),
+    ('e1','e2','e3','e4','e5');
+
+    create index idx_test03_c1234 on test03(c1,c2,c3,c4);
+
+    0.explain select * from test03 where c1='a1';
+      explain select * from test03 where c1='a1' and c2='a2';
+
+        ->普通的使用索引
+
+    1.explain select * from test03 where c1='a1' and c2='a2' and c4='a4' and c3='a3';
+
+        ·可以使用索引？ 可以
+        ·用了几列？ 4
+            -> 等值条件顺序无关
+        ·type ref
+        ·Extra Using index condition
+    
+    2.explain select * from test03 where c1='a1' and c2='a2' and c3>'a3' and c4='a4';
+
+        ·可以使用吗？ 可以
+        ·用了几列？ 3
+        ·type range
+        ·Extra Using index condition
+    
+    3.explain select * from test03 where c1='a1' and c2='a2' and c4>'a4' and c3='a3';
+
+        ·可以使用吗？ 可以
+        ·用了几列？ 4
+        ·type range
+        ·Extra Using index condition
+
+    4.explain select * from test03 where c1='a1' and c2='a2' and c4='a4' order by c3;
+
+        ·可以使用吗？ 可以
+        ·用了几列？ 2
+        ·type ref
+        ·Extra Using index condition -> 如果是非索引后续列的话会出现Using filesort
+
+    5.explain select * from test03 where c1='a1' and c2='a2' order by c3;
+
+        ·同上
+    
+    6.explain select * from test03 where c1='a1' and c2='a2' order by c4;
+
+        ·可以使用吗？ 可以
+        ·用了几列？ 2
+        ·type ref
+        ·Extra Using index condition; Using filesort
+
+    7.explain select * from test03 where c1='a1' and c5='a5' order by c2,c3;
+
+        ·可以使用吗？ 可以
+        ·用了几列？ 1
+        ·type ref
+        ·Extra Using index condition; Using where
+    
+    8.explain select * from test03 where c1='a1' and c5='a5' order by c3,c2;
+
+        ·可以使用吗？ 可以
+        ·用了几列？ 1
+        ·type ref
+        ·Extra Using index condition; Using where; Using filesort
+
+    9.explain select * from test03 where c1='a1' and c2='a2' order by c2,c3;
+
+        ·可以使用吗？ 可以
+        ·用了几列？ 2
+        ·type ref
+        ·Extra Using index condition
+
+    10.explain select * from test03 where c1='a1' and c2='a2' and c5='a5' order by c2,c3;
+
+        ·可以使用吗？ 可以
+        ·用了几列？ 2
+        ·type ref
+        ·Extra Using index condition; Using where
+    
+    11.explain select * from test03 where c1='a1' and c2='a2' and c5='a5' order by c3,c2;
+
+        ·可以使用吗？ 可以
+        ·用了几列？ 2
+        ·type ref
+        ·Extra Using index condition; Using where -> 不会出现filesort，c2的排序条件被优化了
+    
+    12.explain select c1,c2,c3,c4 from test03 where c1='a1' and c4='a4' group by c2,c3;
+
+        ·可以使用吗？ 可以
+        ·用了几列？ 1
+        ·type ref
+        ·Extra Using where; Using index
+    
+    13.explain select c1,c2,c3,c4 from test03 where c1='a1' and c4='a4' group by c3,c2;
+
+        ·可以使用吗？ 可以
+        ·用了几列？ 1
+        ·type ref
+        ·Extra Using where; Using index; Using temporary
+
+        ※分组之前必排序，所以会产生临时表
+
+### 4.5 一般性建议
+
+    ·对于单键索引，尽量选择针对当前Query过滤性更好的索引
+    ·选择组合索引时，过滤性好的字段应当尽量靠左
+    ·选择组合索引时，尽量包含更多where条件中的字段
+    ·多分析统计信息，调整Query写法来选择合适索引

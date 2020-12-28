@@ -489,7 +489,9 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
 
             ※百万数据量 + ALL 直接考虑优化
             一般来说保证到达range或者ref级别
+
         
+
             -system
                 表只有一行记录（等于系统表），是const类型的特例，平时不会出现
             -const
@@ -523,7 +525,9 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
             若查询中使用了覆盖索引，则该索引仅出现在key中。
 
             explain select col2,col3 from t1;
+
         
+
         ·key_len - 索引中使用的字节数，显示为字段的定义长度，而非实际的数据长度
             ※联合索引可以只使用一部分
 
@@ -533,7 +537,9 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
             id - 1 - 1 - 1
             ref - const - test.t1.id - test.t1.id
             ： t1.col1和常数相比较，t2.id和t1.id相比较，t3.id和t1.id相比较
+
         
+
         ·rows - 根据表统计信息和索引选用情况，大致统计出需要查询多少行数据
 
         ·Extra - 额外信息
@@ -600,7 +606,9 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
         drop index idx_article_ccv on article;
 
         尝试优化3：
+
         
+
         create index idx_article_cv on article(category_id,views);
 
         和2效果相同
@@ -638,7 +646,9 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
             table - class - book
             type - all - all
             extra - null - using where; using join buffer
+
         
+
         尝试优化1：
 
             左连接加在右表上
@@ -650,7 +660,9 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
             extra - null - using index
 
             drop index idx_book_card on book;
+
         
+
         尝试优化2：
 
             左连接加在左表上
@@ -681,14 +693,18 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
             select * from class 
             left join book on class.card=book.card
             left join phone on book.card=phone.card;
+
         
+
         未优化：
 
             id - 1 - 1 - 1
             table - class - book - phone
             type - All - All - All
             Extra - NULL - Using where; Using join buffer - ...
+
         
+
         尝试优化1：
 
             create index idx_book_card on book(card);
@@ -766,15 +782,15 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
             -> 等值条件顺序无关
         ·type ref
         ·Extra Using index condition
-    
-    2.explain select * from test03 where c1='a1' and c2='a2' and c3>'a3' and c4='a4';
+
+    2.explain select * from test03 where c1='a1' and c2='a2' and c3>'a3' and c4='a4'; 
 
         ·可以使用吗？ 可以
         ·用了几列？ 3
         ·type range
         ·Extra Using index condition
-    
-    3.explain select * from test03 where c1='a1' and c2='a2' and c4>'a4' and c3='a3';
+
+    3.explain select * from test03 where c1='a1' and c2='a2' and c4>'a4' and c3='a3'; 
 
         ·可以使用吗？ 可以
         ·用了几列？ 4
@@ -791,8 +807,8 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
     5.explain select * from test03 where c1='a1' and c2='a2' order by c3;
 
         ·同上
-    
-    6.explain select * from test03 where c1='a1' and c2='a2' order by c4;
+
+    6.explain select * from test03 where c1='a1' and c2='a2' order by c4; 
 
         ·可以使用吗？ 可以
         ·用了几列？ 2
@@ -805,8 +821,8 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
         ·用了几列？ 1
         ·type ref
         ·Extra Using index condition; Using where
-    
-    8.explain select * from test03 where c1='a1' and c5='a5' order by c3,c2;
+
+    8.explain select * from test03 where c1='a1' and c5='a5' order by c3, c2; 
 
         ·可以使用吗？ 可以
         ·用了几列？ 1
@@ -826,22 +842,22 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
         ·用了几列？ 2
         ·type ref
         ·Extra Using index condition; Using where
-    
-    11.explain select * from test03 where c1='a1' and c2='a2' and c5='a5' order by c3,c2;
+
+    11.explain select * from test03 where c1='a1' and c2='a2' and c5='a5' order by c3, c2; 
 
         ·可以使用吗？ 可以
         ·用了几列？ 2
         ·type ref
         ·Extra Using index condition; Using where -> 不会出现filesort，c2的排序条件被优化了
-    
-    12.explain select c1,c2,c3,c4 from test03 where c1='a1' and c4='a4' group by c2,c3;
+
+    12.explain select c1, c2, c3, c4 from test03 where c1='a1' and c4='a4' group by c2, c3; 
 
         ·可以使用吗？ 可以
         ·用了几列？ 1
         ·type ref
         ·Extra Using where; Using index
-    
-    13.explain select c1,c2,c3,c4 from test03 where c1='a1' and c4='a4' group by c3,c2;
+
+    13.explain select c1, c2, c3, c4 from test03 where c1='a1' and c4='a4' group by c3, c2; 
 
         ·可以使用吗？ 可以
         ·用了几列？ 1
@@ -856,3 +872,116 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
     ·选择组合索引时，过滤性好的字段应当尽量靠左
     ·选择组合索引时，尽量包含更多where条件中的字段
     ·多分析统计信息，调整Query写法来选择合适索引
+
+## 第五节 查询截取分析
+
+    MySQL性能分析流程：
+
+        1. 开启慢查询日志，设置阈值，比如超过5秒就是慢SQL，将其抓取
+        2. 观察，取一个期间的慢SQL执行情况
+
+        3.explain + 慢SQL分析
+        4.show profile - 更加细致的SQL执行情况分析
+
+        5. 运维经理或DBA，进行SQL服务器的参数调优
+
+### 5.1 查询优化
+
+    1.永远小表驱动大表
+
+        select * from A where id int (select id from B);
+
+            for (id : B.ids) {
+                select * from A where A.id = B.id;
+            }
+
+        B表的数据集小于A表的数据集时，用in优于exists。
+
+        select * from A where exists (select 1 from B where B.id=A.id);
+
+            for (* : A.*) {
+                select * from B where B.id = A.id;
+            }
+
+        A表的数据集小于B表的数据集时，用exists优于in。
+
+        ※当然，A与B表的id字段都应该建立索引
+
+        ·select * from tbl where exists(subquery)
+            -exists(subquery)返回true或false，查询内容会被无视
+
+    2.order by关键字优化
+
+        ·order by子句，尽量使用index方式来排序，避免使用filesort。
+        ·两种情况可以使用index方式：
+            -order by使用索引最左前列
+            -使用where子句与order by子句条件组合满足索引最左前列
+              ※全部降序也可以用索引 - Backward index scan
+        ·如果没有使用index，MySQL有两种排序方式：
+            -单路排序
+                全部读入后在buffer中排序；
+                只读一次，但是需要的空间更多
+            -双路排序
+                MySQL 4.1之前使用双路排序，扫两次磁盘；
+                先读order by列和指针，排好序后再出数据
+
+            单路排序的问题：
+                如果内存放不下，就要依赖外部存储来排序，IO次数可能会多于双路。
+
+            优化策略：
+                ·增大sort_buffer_size
+                ·增大max_length_for_sort_data
+                    -Query字段长度大于这个参数且排序字段不包括TEXT，BLOB时就会回到多路排序
+
+    3.group by关键字优化
+
+        ·group by之前必须排序，优化方式基本与order by相同
+        ·where高于having，所以条件优先写在where里
+
+### 5.2 慢查询日志
+
+    默认阈值10秒。
+    自动记录查询超过阈值的SQL。
+
+    默认不开启慢查询日志，需要手动开启。
+
+        ·show variables like 'slow%'; 
+        ·set global slow_query_log=1; 
+        ·show variables like 'long_query_time'; 
+        ·set global long_query_time=3; 
+
+    执行超过long_query_time的查询语句，就会被记录在slow_query_log_file中。
+
+    可以使用select sleep(1)来睡眠，不过如果在表上执行的话，
+    MySQL会对满足条件的行每行sleep指定的时间。
+
+    在生产环境中，如果手工分析日志，查找、分析SQL，显然比较费力，
+    MySQL提供了日志分析工具mysqldumpslow。
+
+        mysqldumpslow --help
+
+            s - 排序方式
+            c - 访问次数
+            l - 锁定时间
+            r - 返回记录
+            t - 查询时间
+            al - 平均锁定时间
+            ar - 平均返回记录数
+            at - 平均查询时间
+            t - 返回前面多少条数据
+            g - 正则表达式，大小写不敏感
+
+        ·得到返回记录集最多的10条SQL
+            mysqldumpslow -s r -t 10 /var/lib/mysql/localhost-slow.log
+        ·得到访问次数最多的10条SQL
+            mysqldumpslow -s c -t 10 /var/lib/mysql/localhost-slow.log
+        ·得到访问时间最长的的10条有左连接的SQL
+            mysqldumpslow -s t -t 10 -g 'left join' /var/lib/mysql/localhost-slow.log
+
+            ※建议配合more使用，否则容易爆屏
+
+        
+
+        
+
+        

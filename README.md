@@ -980,7 +980,98 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
 
             ※建议配合more使用，否则容易爆屏
 
-        
+### 5.3 批量数据脚本
+
+    目标：插入1000W数据
+
+    1.建表
+
+        create table dept(
+            id int primary key auto_increment,
+            deptNo int not null default 0,
+            dName varchar(20) not null default "",
+            loc varchar(13) not null default ""
+        );
+
+        create table emp(
+            id int primary key auto_increment,
+            empNo int not null default 0,
+            eName varchar(20) not null default "",
+            job varchar(9) not null default "",
+            mgr int not null default 0,
+            hiredate date not null,
+            sal decimal(7,2) not null,
+            comm decimal(7,2) not null,
+            deptNo int not null default 0
+        );
+
+    2.设置参数log_bin_trust_function_creators
+
+        show variables like 'log_bin_trust_function_creators'; 
+        set global log_bin_trust_function_creators=1; 
+
+    3. 编写函数插入不同的数据
+
+        ·随机字符串     
+            delimiter ; ; 
+            create function rand_string(n int) returns varchar(255)
+            begin
+                declare chars_str varchar(100) default 'abcdefghijklmnopqrstuvwxyz'; 
+                declare return_str varchar(255) default ''; 
+                declare i int default 0; 
+                
+                while i < n do
+                    set return_str=concat(return_str, substring(chars_str, floor(1+rand()*26), 1)); 
+                    set i = i + 1; 
+                end while; 
+
+                return return_str; 
+            end; ; 
+
+        ·随机编号
+            delimiter ; ; 
+            create function rand_num() returns int(5)
+            begin
+                declare i int default 0; 
+                set i = floor(100+rand()*10); 
+                return i; 
+            end; ; 
+
+    4. 创建存储过程
+
+        ·往emp表中插入数据的存储过程
+            delimiter ; ; 
+            create procedure insert_emp(in start int, in max_num int)
+            begin
+                declare i int default 0; 
+                set autocommit = 0; 
+                repeat
+                    set i = i + 1; 
+                    insert into emp(empNo, eName, job, mgr, hiredate, sal, comm, deptNo)
+                    values((start+i), rand_string(6), 'SALEMAN', 0001, curdate(), 2000, 400, rand_num()); 
+                until i = max_num
+                end repeat; 
+                commit; 
+            end; ; 
+        ·往dept表中插入数据的存储过程
+            delimiter ; ; 
+            create procedure insert_dept(in start int, in max_num int)
+            begin
+            declare i int default 0; 
+                set autocommit = 0; 
+                repeat
+                    set i = i + 1; 
+                    insert into dept(deptNo, dName, loc)
+                    values((start+i), rand_string(10), rand_string(8)); 
+                until i = max_num
+                end repeat; 
+                commit; 
+            end; ; 
+    
+    5. 调用存储过程
+
+        call insert_emp(1,500000);
+        call insert_dept(1,500000);
 
         
 

@@ -1067,12 +1067,164 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
                 end repeat; 
                 commit; 
             end; ; 
-    
+
     5. 调用存储过程
 
         call insert_emp(1,500000);
         call insert_dept(1,500000);
 
-        
+### 5.4 show profile
+
+    测试环境中重现故障
+
+    1.收到报警
+    2.开启慢查询，抓取慢SQL
+    3.explain观察
+    4.show profile
+
+    ·是什么？
+        MySQL提供的可以用来分析当前会话中语句执行的资源消耗情况
+        可以拥有SQL调优的测量
+        默认情况下，参数处于关闭状态
+        默认保存最近15次的运行结果
+
+    ·分析步骤
+
+        1. 查看当前版本是否支持
+
+            show vairables like '%profiling%'; 
+
+        2. 开启
+
+            set global profiling=1; 
+
+        3. 运行SQL
+
+            select * from tbl_emp; 
+
+        4. 查看结果
+
+            show profiles; 
+
+        5. 诊断SQL结果
+
+            show profile cpu, block io for query (Query_ID); 
+            ※可以看到一条SQL的完整生命周期
+
+                starting
+                check permissions
+                Opening tables
+                init
+                System lock
+                optimizing
+                statistics
+                preparing
+                executing
+                end
+                query end
+                waiting for handler commit
+                closing tables
+                freeing items
+                cleaning up
+            
+            ※参数可选
+
+                ALL,BLOCK IO,CONTEXT SWITCHES,CPU,IPC,MEMORY,PAGE FAULTS,
+                SOURCE,SWAPS
+
+            主要关注四个生命周期阶段：
+                ·converting heap to MyISAM - 查询结果从内存移动到磁盘
+                ·Creating tmp table - 创建临时表
+                ·Copying to tmp table on disk - 内存临时表复制到磁盘
+                ·locked - 锁等待
+            
+            ※这些步骤出现时往往就代表着效率低下
+
+### 5.5 全局查询日志
+
+    1.配置启用
+
+        set global general_log=1;
+
+    2.编码启用
+
+        set global log_output='TABLE';
+
+        此后，SQL语句将会记录到MySQL库里的general_log表，可以用下面的命令查看
+
+        select * from mysql.general_log;
+
+    3.永远不要在生产环境开启这个功能
+
+## 第六节 MySQL锁机制
+
+### 6.1 概述
+
+    ·定义
+
+        锁是计算机协调多个进程或线程并发访问某一资源的机制。
+        在数据库中，除传统的计算资源（如CPU、RAM、IO等）的争用以外，
+        数据也是一种供许多用户共享的资源。如何保证数据并发访问的一致性、有效性，
+        也是数据库必须解决的一个问题。同时，锁冲突也是影响数据库并发访问性能的一个重要因素。
+        从这个角度来说，锁对数据库而言显得尤其重要，也更加复杂。
+
+    ·分类
+
+        -从对数据操作的粒度分：
+            表锁、行锁
+        -从对数据操作的类型分：
+            读锁（共享锁）、写锁（排它锁）
+
+    ·三锁
+
+        表锁 - 偏读
+            MyISAM引擎。
+            开销小，加锁快；无死锁；锁定粒度大，发生锁冲突概率最高，并发度最低
+        行锁 - 偏写
+            InnoDB引擎。
+            开销大，加锁慢；有死锁；锁定粒度小，发生锁冲突概率低，并发度高
+        页锁
+
+### 6.2 读锁·写锁示例
+
+    建表
+
+        create table mylock(
+            id int primary key auto_increment,
+            name varchar(20)
+        )engine=myisam;
+
+        insert into mylock(name) values('a'), ('b'), ('c'), ('d'), ('e'); 
+
+    手动锁表
+
+        lock table tbl1 read/write[, tbl2 read/write]; 
+
+    查看上锁状况
+
+        show open tables;
+
+    释放表锁
+
+        unlock tables;
+
+    ※惊呆
+        自己加了读·写锁不能读没有锁的表。
+
+        自己加了读锁自己不能写，直接出错；
+        自己加了读锁别人写会进入等待。
+
+        自己加了写锁自己随便搞；别人读和写都是进入等待。
+
+        读锁可以重复加，写锁重复加会等待。
+
+    观察表锁定
+
+        +----------------------------+-------+
+        | Variable_name              | Value |
+        +----------------------------+-------+
+        | Table_locks_immediate      | 84    | 立即获取了表锁的查询次数
+        | Table_locks_waited         | 0     | 获取表锁时经过了等待的查询次数
+        +----------------------------+-------+
 
         

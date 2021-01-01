@@ -1227,4 +1227,64 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
         | Table_locks_waited         | 0     | 获取表锁时经过了等待的查询次数
         +----------------------------+-------+
 
+### 6.3 行锁·间隙锁
+
+    建表
+
+        create table test_innodb_lock (
+            a int,
+            b varchar(16)
+        ) engine=InnoDB;
+
+        insert into test_innodb_lock values(1,'b2'),(3,'3'),
+        (4,'4000'),(5,'5000'),(6,'6000'),(7,'7000'),(8,'8000'),
+        (9,'9000'),(1,'b1');
+
+        create index test_inndb_a_ind on test_innodb_lock(a);
+
+        create index test_innodb_lock_b_ind on test_innodb_lock(b); 
+
+    行锁演示
+
+        set autocommit=0;
+
+        update test_innodb_lock set b='4001' where a=4;
+
+        update test_innodb_lock set b='4002' where a=4; 
+        update test_innodb_lock set b='9002' where a=9; 
+
+    无索引行锁升级表锁
+
+        ※varchar没有引号导致索引失效是引起这个问题的典型案例
+
+    间隙锁
+
+    面试题：如何锁定一行？
+
+        begin;
+        select * from tbl where a=8 for update;
+        commit;
+
+    总结：
+        InnoDB行锁性能损耗高，但是并发能力要远高于MyISAM。
+
+    分析语法：
+        show status like 'innodb_row_lock%';
+
+        +-------------------------------+-------+
+        | Variable_name                 | Value |
+        +-------------------------------+-------+
+        | Innodb_row_lock_current_waits | 1     | -> 当前锁中
+        | Innodb_row_lock_time          | 73115 |
+        | Innodb_row_lock_time_avg      | 7311  |
+        | Innodb_row_lock_time_max      | 18252 |
+        | Innodb_row_lock_waits         | 10    | -> 平均行锁等待时间
+        +-------------------------------+-------+
+
+## 第七节 主从复制
+
+        
+
+        
+
         

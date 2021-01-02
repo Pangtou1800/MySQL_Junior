@@ -1283,8 +1283,60 @@ mysql> explain select * from tbl_emp a left join tbl_dept b on a.deptId=b.id uni
 
 ## 第七节 主从复制
 
-        
+### 7.1 复制的基本原理
 
-        
+    ·slave从master读取binlog进行数据同步
+    ·步骤：
+        slave IO thread read binlog
+        slave write relay log
+        slave SQL thread replay relay log
 
-        
+### 7.2 复制的基本规则
+
+    ·每个slave只有一个master
+    ·每个slave只能有一个唯一的服务器ID
+    ·每个master可以有多个slave
+
+### 7.3 复制的最大问题
+
+    ·主从延迟
+
+### 7.4 一主一从常见配置
+
+    1.MySQL版本一致且后台以服务运行，相互ping通
+    2.主从配置都在[mysqlId]节点下，都是小写
+    3.主机修改my.ini配置文件
+        ·server-id=1
+        ·启用二进制日志
+            log-bin : 二进制日志路径
+        ·[可选]启用错误日志
+            log-error : 错误日志路径
+        ·[可选]根目录
+            basedir
+        ·[可选]临时目录
+            tmpdir
+        ·[可选]数据目录
+            datadir
+        ·[可选]read-only=0 ：主机读写均可
+        ·[可选]binlog-ignore-db=mysql ：不复制的数据库
+        ·[可选]binlog-do-db ：需要复制的主数据库名字
+    4.从机修改my.cnf
+        ·server-id=2
+        ·[可选]启用二进制日志
+    5.关闭防火墙
+    6.在master上建立账户并授权slave
+        create user 'pangtou'@'192.168.229.129' identified with mysql_native_password by '1234567';
+        grant replication client,replication slave on *.* to 'pangtou'@'192.168.229.129';
+        flush privileges;
+    7.在slave上配置需要复制的主机
+        stop slave;
+        change master to master_host='192.168.2.138', master_port=3306, master_user='repl', master_password='wwwwww'[, master_log_file='mysql-bin.000004', master_log_pos=155];
+        start slave;
+
+        观察状态： show slave status;
+            Slave_IO_Running：Yes
+            Slave_SQL_Running：Yes
+            ※这两个参数Yes就表示连接通畅
+
+    8.停止主从复制
+        stop slave;
